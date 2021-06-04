@@ -7,7 +7,14 @@ using namespace std;
 #define RIGHT_EDGE  2
 #define BOTTOM_EDGE 4
 #define TOP_EDGE    8
-
+#define DEGREES_TO_RADIANS 3.14159 / 180.0
+// 旋转参数
+static GLfloat spin = 0.0;
+GLfloat x = 0.0;
+GLfloat y = 0.0;
+GLfloat size = 50.0;
+GLfloat angle = 2.0;
+GLsizei wh = 500, ww = 500;
 
 int flag = 0;
 int imode; // 菜单所选的功能
@@ -22,8 +29,25 @@ int x2, y2, x3, y3;
 int px2, py2, px3, py3;
 bool bDrawLine = true;
 int width = 640, height = 480;
-/*直线裁剪算法所用数据结构*/
 
+
+/*画正方形*/
+void square() {
+    glBegin(GL_QUADS);
+    glVertex2f(x+320, y+240);
+    glVertex2f(-y+320, x+240);
+    glVertex2f(-x+320, -y+240);
+    glVertex2f(y+320, -x+240);
+    glEnd();
+}
+/*旋转*/
+void spinDisplay(void) {
+    spin = spin + 2.0;
+    if (spin > 360.0) spin = spin - 360.0;
+    x = 125.0 * cos(DEGREES_TO_RADIANS * spin);
+    y = 125.0 * sin(DEGREES_TO_RADIANS * spin);
+    glutPostRedisplay();
+}
 
 /*B样条曲线所用数据结构*/
 #define NUM_POINTS 4
@@ -225,7 +249,7 @@ void LineDDA(int x0, int y0, int x1, int y1)
    xIncre = (float)dx / (float)epsl;
    yIncre = (float)dy / (float)epsl;
    glColor3f (1.0f, 1.0f, 0.0f);
-   glPointSize(1);
+   glPointSize(3);
    for(k = 0; k <= epsl; k++)
    {
        glBegin (GL_POINTS);
@@ -254,7 +278,7 @@ void Bresenham(int x0, int y0, int x1, int y1) {
    UpIncre = 2 * dx - 2 * dy;
    DownIncre = -2 * dy;
    glColor3f (0.0f, 1.0f, 0.0f);
-   glPointSize(1);
+   glPointSize(3);
    if (y0 < y1) {
        while (x <= x1) {
            glBegin(GL_POINTS);
@@ -300,7 +324,7 @@ void eighth_circle(int x0, int y0, int r) {
    int y = r;
    int d = 1 - r;
    glColor3f(1.0f, 0.0f, 1.0f);
-   glPointSize(1);
+   glPointSize(3);
    while (x < y) {
        glBegin(GL_POINTS);
        glVertex2i(x + x0, y + y0);
@@ -331,16 +355,14 @@ typedef struct
 
 //多边形的顶点坐标
 static polygon2D points[15] = {};
-//{ {160,230},{180,420},{330,350},{300,430},{500,330},{340,180},{280,360},{240,150} };
-//备用多边形坐标50 450 360 320 500 50 300 350
 
 //多边形的顶点数
-static int Clip_N = 8;
+static int Clip_N = 0;
 
 //多边形裁剪窗口坐标
 static polygon2D wMin, wMax;
 
-//多边形裁剪窗口边界
+//多边形裁剪窗口边界对应着0、1、2、3
 typedef enum
 {
     Left, Right, Bottom, Top
@@ -351,18 +373,18 @@ int inside(polygon2D p, Boundary b, polygon2D wMin, polygon2D wMax)
 {
     switch (b)
     {
-    case Left:
-        if (p.x < wMin.x) return (false);
-        break;
-    case Right:
-        if (p.x > wMax.x) return (false);
-        break;
-    case Bottom:
-        if (p.y < wMin.y) return (false);
-        break;
-    case Top:
-        if (p.y > wMax.y) return (false);
-        break;
+        case Left:
+            if (p.x < wMin.x) return (false);
+            break;
+        case Right:
+            if (p.x > wMax.x) return (false);
+            break;
+        case Bottom:
+            if (p.y < wMin.y) return (false);
+            break;
+        case Top:
+            if (p.y > wMax.y) return (false);
+            break;
     }
     return true;
 }
@@ -371,7 +393,7 @@ int inside(polygon2D p, Boundary b, polygon2D wMin, polygon2D wMax)
 int cross(polygon2D p1, polygon2D p2, Boundary b, polygon2D wMin, polygon2D wMax)
 {
     if (inside(p1, b, wMin, wMax) == inside(p2, b, wMin, wMax))
-        return (false);
+        return false;
     else
         return true;
 }
@@ -380,30 +402,30 @@ int cross(polygon2D p1, polygon2D p2, Boundary b, polygon2D wMin, polygon2D wMax
 //按左、右、下、上边界来确定裁剪后的顶点
 polygon2D intersect(polygon2D p1, polygon2D p2, Boundary b, polygon2D wMin, polygon2D wMax)
 {
-    polygon2D iPt;
+    polygon2D temp;
     float m = 0;
     if (p1.x != p2.x) m = (p2.y - p1.y) / (p2.x - p1.x);
     switch (b) {
-    case Left:
-        iPt.x = wMin.x;
-        iPt.y = p2.y + (wMin.x - p2.x) * m;
-        break;
-    case Right:
-        iPt.x = wMax.x;
-        iPt.y = p2.y + (wMax.x - p2.x) * m;
-        break;
-    case Bottom:
-        iPt.y = wMin.y;
-        if (p1.x != p2.x)iPt.x = p2.x + (wMin.y - p2.y) / m;
-        else iPt.x = p2.x;
-        break;
-    case Top:
-        iPt.y = wMax.y;
-        if (p1.x != p2.x) iPt.x = p2.x + (wMax.y - p2.y) / m;
-        else iPt.x = p2.x;
-        break;
+        case Left:
+            temp.x = wMin.x;
+            temp.y = p2.y + (wMin.x - p2.x) * m;
+            break;
+        case Right:
+            temp.x = wMax.x;
+            temp.y = p2.y + (wMax.x - p2.x) * m;
+            break;
+        case Bottom:
+            temp.y = wMin.y;
+            if (p1.x != p2.x)temp.x = p2.x + (wMin.y - p2.y) / m;
+            else temp.x = p2.x;
+            break;
+        case Top:
+            temp.y = wMax.y;
+            if (p1.x != p2.x) temp.x = p2.x + (wMax.y - p2.y) / m;
+            else temp.x = p2.x;
+            break;
     }
-    return iPt;
+    return temp;
 }
 
 //多边形裁剪，并更新裁剪后的顶点数组pOut
@@ -472,7 +494,7 @@ void ClipPolygon(void)
             pIn[i] = points[i];
         }
     }
-
+    glLineWidth(2.0);
     glColor3f(0.0, 0.0, 0.0);
     glBegin(GL_LINE_LOOP);
     glVertex2f(wMin.x, wMin.y);
@@ -481,7 +503,7 @@ void ClipPolygon(void)
     glVertex2f(wMin.x, wMax.y);
     glEnd();
 
-    glLineWidth(2.0);
+    
     if (Clip_N > 2)
     {
         //绘制多边形的控制点
@@ -549,6 +571,8 @@ void Reshape(int w, int h)
         gluOrtho2D(0.0, (GLsizei)w, (GLsizei)h, 0.0);
         glMatrixMode(GL_MODELVIEW);
         glLoadIdentity();
+        ww = w;
+        wh = h;
 }
 
 void motion(int x, int y) {
@@ -684,7 +708,10 @@ void mouse(int button, int state, int x, int y)
             Clip_N++;//多边形顶点数加1
         }
     } else if (flag == 6) {
-        
+        if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN) exit(0);
+        if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
+            glutIdleFunc(spinDisplay);
+        if (button == GLUT_MIDDLE_BUTTON && state == GLUT_DOWN) glutIdleFunc(NULL);
     } else if (flag == 7) {
         
     } else if (flag == 8) {
@@ -710,9 +737,15 @@ void Display() {
     /*指定要绘制的图元*/
     if (imode == 1) {
         /*动态直线裁剪*/
+        glLineWidth(2.0);
         glClear(GL_COLOR_BUFFER_BIT);
-        glColor3f(0.5f, 0.5f, 1.0f);
-        glRectf(rect.xmin, rect.ymin, rect.xmax, rect.ymax);
+        glColor3f(0.0, 0.0, 0.0);
+        glBegin(GL_LINE_LOOP);
+        glVertex2f(rect.xmin, rect.ymin);
+        glVertex2f(rect.xmin, rect.ymax);
+        glVertex2f(rect.xmax, rect.ymax);
+        glVertex2f(rect.xmax, rect.ymin);
+        glEnd();
         if (bDrawLine)
             LineGL(x2, y2, x3, y3);
         glFlush();
@@ -720,7 +753,7 @@ void Display() {
     } else if (imode == 2) {
         /*绘制直线*/
         glClear(GL_COLOR_BUFFER_BIT);
-           glPointSize(10);
+           glPointSize(30);
 
            LineDDA(200, 400, 400, 0); // k < -1
 
@@ -752,7 +785,10 @@ void Display() {
         flag = 5;
     } else if (imode == 6) {
         /*动态绘制矩形*/
-        
+        glClear(GL_COLOR_BUFFER_BIT);
+        glColor3f(0.0, 0.0, 0.0);
+        square();
+        glutSwapBuffers();
         flag = 6;
     } else if (imode == 7) {
         /*二维变换绘制*/
@@ -817,7 +853,7 @@ int main(int argc, char *argv[])
     int nGLutMCMenu = glutCreateMenu(ProcessMenu);
     glutAddMenuEntry("动态多边形裁剪", 5);
     int nGLutrectMenu = glutCreateMenu(ProcessMenu);
-    glutAddMenuEntry("动态绘制矩形", 6);
+    glutAddMenuEntry("二维正方形变换", 6);
     int nGLutchangeMenu = glutCreateMenu(ProcessMenu);
     glutAddMenuEntry("二维变换绘制", 7);
     int nGLutBT2Menu = glutCreateMenu(ProcessMenu);
@@ -835,7 +871,7 @@ int main(int argc, char *argv[])
 //    glutAddSubMenu("动态绘圆", nGLutCircleMenu);
 //    glutAddSubMenu("动态绘椭圆", nGLutTCMenu);
     glutAddSubMenu("动态多边形裁剪", nGLutMCMenu);
-    glutAddSubMenu("动态绘制矩形", nGLutrectMenu);
+    glutAddSubMenu("二维正方形变换", nGLutrectMenu);
     glutAddSubMenu("二维变换绘制", nGLutchangeMenu);
     glutAddSubMenu("二次均匀B样条曲线绘制", nGLutBT2Menu);
     glutAddSubMenu("三次均匀B样条曲线绘制", nGLutBT3Menu);
@@ -851,11 +887,8 @@ int main(int argc, char *argv[])
     glutMouseFunc(mouse);
     glutMotionFunc(motion);
     glutReshapeFunc(Reshape);
+    glutIdleFunc(spinDisplay);
 //    glutSpecialFunc(SpecialKeys);
     glutMainLoop();
     return 0;
 }
-
-
-
-
