@@ -212,7 +212,117 @@ void init_Bspline() {
     vec[3].SetPoint2(500, 300);
 }
 
+/*直线以及画圆*/
+void LineDDA(int x0, int y0, int x1, int y1)
+{
+   int dx, dy, epsl, k;
+   float x, y, xIncre, yIncre;
+   dx = x1 - x0;
+   dy = y1 - y0;
+   x = x0; y = y0;
+   if (abs(dx) > abs(dy)) epsl = abs(dx);
+   else epsl = abs(dy);
+   xIncre = (float)dx / (float)epsl;
+   yIncre = (float)dy / (float)epsl;
+   glColor3f (1.0f, 1.0f, 0.0f);
+   glPointSize(1);
+   for(k = 0; k <= epsl; k++)
+   {
+       glBegin (GL_POINTS);
+       glVertex2i (x, (int)(y+0.5));
+       glEnd ();
+       x += xIncre;
+       y += yIncre;
+   }
+}
 
+void Bresenham(int x0, int y0, int x1, int y1) {
+   int dx, dy, d, UpIncre, DownIncre, x, y;
+   int flag = 0;
+   if (abs(y1 - y0) > abs(x1 - x0)) {
+       swap(x0, y0);
+       swap(x1, y1);
+       flag = 1;
+   }
+   if (x0 > x1){
+       swap(x1, x0);
+       swap(y1, y0);
+   }
+   x = x0; y = y0;
+   dx = x1 - x0; dy = y1 - y0;
+   d = dx - 2 * dy;
+   UpIncre = 2 * dx - 2 * dy;
+   DownIncre = -2 * dy;
+   glColor3f (0.0f, 1.0f, 0.0f);
+   glPointSize(1);
+   if (y0 < y1) {
+       while (x <= x1) {
+           glBegin(GL_POINTS);
+           if (flag == 0) // 0 < k < 1
+               glVertex2i(x, y);
+           else
+               glVertex2i(y, x);
+           glEnd();
+           x++;
+           if (d < 0) {
+               y++;
+               d += UpIncre;
+           } else {
+               d += DownIncre;
+           }
+       }
+   } else {
+       d = -dx - 2 * dy;
+       UpIncre = -2 * dx - 2 * dy;
+       DownIncre = -2 * dy;
+       while (x <= x1) {
+           glBegin(GL_POINTS);
+           if (flag == 0) // 0 < k < 1
+               glVertex2i(x, y);
+           else
+               glVertex2i(y, x);
+           glEnd();
+           if (d < 0) {
+               x++;
+               d += DownIncre;
+           } else {
+               x++;
+               y--;
+               d += UpIncre;
+           }
+       }
+   }
+}
+
+// circle
+void eighth_circle(int x0, int y0, int r) {
+   int x = 0;
+   int y = r;
+   int d = 1 - r;
+   glColor3f(1.0f, 0.0f, 1.0f);
+   glPointSize(1);
+   while (x < y) {
+       glBegin(GL_POINTS);
+       glVertex2i(x + x0, y + y0);
+       glVertex2i(y + x0, x + y0);
+       glVertex2i(x + x0, -y + y0);
+       glVertex2i(-y + x0, x + y0);
+       glVertex2i(-x + x0, y + y0);
+       glVertex2i(y + x0, -x + y0);
+       glVertex2i(-x + x0, -y + y0);
+       glVertex2i(-y + x0, -x + y0);
+       glEnd();
+       x++;
+       if (d < 0) d += 2 * x + 3;
+       else {
+           d += 2*(x-y) + 5;
+           y--;
+       }
+   }
+
+}
+
+/*多边形裁剪*/
 
 
 void Reshape(int w, int h)
@@ -320,6 +430,7 @@ void mouse(int button, int state, int x, int y)
         }
     } else if (flag == 2) {
         
+        
     } else if (flag == 3) {
         
     } else if (flag == 4) {
@@ -361,8 +472,24 @@ void Display() {
         glFlush();
         flag = 1;
     } else if (imode == 2) {
-        /*绘制贝塞尔曲线*/
+        /*绘制直线*/
+        glClear(GL_COLOR_BUFFER_BIT);
+           glPointSize(10);
 
+           LineDDA(200, 400, 400, 0); // k < -1
+
+           LineDDA(0, 200, 400, 000); // 0 > k > -1
+
+           LineDDA(0, 200, 400, 400); // 0 < k < 1
+
+           LineDDA(200, 0, 400, 400); // k > 1
+        
+           Bresenham(0, 0, 200, 400);
+           Bresenham(0, 0, 400, 200);
+           Bresenham(0, 400, 200, 0);
+           Bresenham(0, 400, 400, 200);
+           eighth_circle(200, 200, 200);
+           glFlush();
         flag = 2;
         //Initial();
     } else if (imode == 3) {
@@ -436,11 +563,11 @@ int main(int argc, char *argv[])
     int nGLutLine_Clip_Menu = glutCreateMenu(ProcessMenu);
     glutAddMenuEntry("直线裁剪", 1);
     int nGLutBesierMenu = glutCreateMenu(ProcessMenu);
-    glutAddMenuEntry("贝塞尔曲线绘制", 2);
-    int nGLutCircleMenu = glutCreateMenu(ProcessMenu);
-    glutAddMenuEntry("动态绘圆", 3);
-    int nGLutTCMenu = glutCreateMenu(ProcessMenu);
-    glutAddMenuEntry("动态绘椭圆", 4);
+    glutAddMenuEntry("直线以及八点画圆", 2);
+//    int nGLutCircleMenu = glutCreateMenu(ProcessMenu);
+//    glutAddMenuEntry("动态绘圆", 3);
+//    int nGLutTCMenu = glutCreateMenu(ProcessMenu);
+//    glutAddMenuEntry("动态绘椭圆", 4);
     int nGLutMCMenu = glutCreateMenu(ProcessMenu);
     glutAddMenuEntry("动态多边形裁剪", 5);
     int nGLutrectMenu = glutCreateMenu(ProcessMenu);
@@ -458,9 +585,9 @@ int main(int argc, char *argv[])
     /*创建主菜单*/
     int nMainMenu = glutCreateMenu(ProcessMenu);
     glutAddSubMenu("直线裁剪", nGLutLine_Clip_Menu);
-    glutAddSubMenu("贝塞尔曲线绘制", nGLutBesierMenu);
-    glutAddSubMenu("动态绘圆", nGLutCircleMenu);
-    glutAddSubMenu("动态绘椭圆", nGLutTCMenu);
+    glutAddSubMenu("直线以及八点画圆", nGLutBesierMenu);
+//    glutAddSubMenu("动态绘圆", nGLutCircleMenu);
+//    glutAddSubMenu("动态绘椭圆", nGLutTCMenu);
     glutAddSubMenu("动态多边形裁剪", nGLutMCMenu);
     glutAddSubMenu("动态绘制矩形", nGLutrectMenu);
     glutAddSubMenu("二维变换绘制", nGLutchangeMenu);
