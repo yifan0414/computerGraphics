@@ -15,6 +15,7 @@ GLfloat y = 0.0;
 GLfloat size = 50.0;
 GLfloat angle = 2.0;
 GLsizei wh = 500, ww = 500;
+GLfloat xp = 320, yp = 240;
 
 int flag = 0;
 int imode; // 菜单所选的功能
@@ -34,12 +35,25 @@ int width = 640, height = 480;
 /*画正方形*/
 void square() {
     glBegin(GL_QUADS);
-    glVertex2f(x+320, y+240);
-    glVertex2f(-y+320, x+240);
-    glVertex2f(-x+320, -y+240);
-    glVertex2f(y+320, -x+240);
+    glVertex2f(x + xp, y + yp);
+    glVertex2f(-y + xp, x + yp);
+    glVertex2f(-x + xp, -y + yp);
+    glVertex2f(y + xp, -x + yp);
     glEnd();
 }
+
+//绘制一个菱形
+void drawDiamond(void)
+{
+    glBegin (GL_POLYGON);
+    glVertex2f (0,0);        //左下点 (200,200)
+    glVertex2f (20,-40);        //右下点 (40,280)
+    glVertex2f (0,-80);        //右上点 (200,360)
+    glVertex2f (-20,-40);       //左上点 (160,280)
+    glEnd ();
+}
+
+
 /*旋转*/
 void spinDisplay(void) {
     spin = spin + 2.0;
@@ -49,12 +63,13 @@ void spinDisplay(void) {
     glutPostRedisplay();
 }
 
+
 /*B样条曲线所用数据结构*/
 #define NUM_POINTS 4
 #define NUM_SEGMENTS NUM_POINTS - 2 // 阶数
 
 int cnt = NUM_POINTS; // 这里表示目前有多少个点
-
+int cnt2 = 5;
 struct Point2
 {
     double x;
@@ -66,7 +81,7 @@ struct Point2
 };
 
 /*全局变量*/
-Point2 vec[100];
+Point2 vec[100], vec2[100];
 bool mouseLeftDown = false;//记录鼠标左右键事件触发
 /*B样条曲线所用数据结构*/
 
@@ -229,35 +244,86 @@ void init_line()
 void init_Bspline() {
     glClearColor(1.0, 1.0, 1.0, 0.0);
     glShadeModel(GL_FLAT);
-
     vec[0].SetPoint2(100, 300);
     vec[1].SetPoint2(200, 100);
     vec[2].SetPoint2(400, 100);
     vec[3].SetPoint2(500, 300);
 }
+void init_Bspline2() {
+    glClearColor(1.0, 1.0, 1.0, 0.0);
+    glShadeModel(GL_FLAT);
+    vec2[0].SetPoint2(100, 400);
+    vec2[1].SetPoint2(200, 200);
+    vec2[2].SetPoint2(300, 200);
+    vec2[3].SetPoint2(400, 400);
+    vec2[4].SetPoint2(500, 400);
+    //vec[5].SetPoint2(600, 300);
+}
+
+// 开放均匀B样条曲线
+void Bspline2(int n) {
+    float f1, f2, f3;
+    float deltaT = 1.0 / n;
+    float T;
+
+    glBegin(GL_LINE_STRIP);
+    // glBegin(GL_POINTS);
+    // 根据基函数的重叠位置，分别带入控制点坐标进行计算
+    int num = 0;
+    for (int i = 0; i <= n; i++) {
+        T = i * deltaT;
+        f1 = pow(1 - T, 2);
+        f2 = T / 2 * (4 - 3 * T);
+        f3 = pow(T, 2) / 2;
+
+        glVertex2f(f1 * vec2[num].x + f2 * vec2[num + 1].x + f3 * vec2[num + 2].x,
+                   f1 * vec2[num].y + f2 * vec2[num + 1].y + f3 * vec2[num + 2].y);
+    }
+    num = 1;
+    for (int i = 0; i <= n; i++) {
+        T = i * deltaT + 1;
+        f1 = pow(2 - T, 2) / 2;
+        f2 = T / 2 * (2 - T) + (T - 1) * (3 - T) / 2;
+        f3 = pow(T - 1, 2) / 2;
+
+        glVertex2f(f1 * vec2[num].x + f2 * vec2[num + 1].x + f3 * vec2[num + 2].x,
+                   f1 * vec2[num].y + f2 * vec2[num + 1].y + f3 * vec2[num + 2].y);
+    }
+    num = 2;
+    for (int i = 0; i <= n; i++) {
+        T = i * deltaT + 2;
+        f1 = pow(3 - T, 2) / 2;
+        f2 = (3 * T - 5) * (3 - T) / 2;
+        f3 = pow(T - 2, 2);
+
+        glVertex2f(f1 * vec2[num].x + f2 * vec2[num + 1].x + f3 * vec2[num + 2].x,
+                   f1 * vec2[num].y + f2 * vec2[num + 1].y + f3 * vec2[num + 2].y);
+    }
+    glEnd();
+}
 
 /*直线以及画圆*/
-void LineDDA(int x0, int y0, int x1, int y1)
+void DDA(int x0, int y0, int x1, int y1)
 {
-   int dx, dy, epsl, k;
-   float x, y, xIncre, yIncre;
-   dx = x1 - x0;
-   dy = y1 - y0;
-   x = x0; y = y0;
-   if (abs(dx) > abs(dy)) epsl = abs(dx);
-   else epsl = abs(dy);
-   xIncre = (float)dx / (float)epsl;
-   yIncre = (float)dy / (float)epsl;
-   glColor3f (1.0f, 1.0f, 0.0f);
-   glPointSize(3);
-   for(k = 0; k <= epsl; k++)
-   {
-       glBegin (GL_POINTS);
-       glVertex2i (x, (int)(y+0.5));
-       glEnd ();
-       x += xIncre;
-       y += yIncre;
-   }
+    int dx, dy, epsl, k;
+    float x, y, xIncre, yIncre;
+    dx = x1 - x0;
+    dy = y1 - y0;
+    x = x0; y = y0;
+    if (abs(dx) > abs(dy)) epsl = abs(dx);
+    else epsl = abs(dy);
+    xIncre = (float)dx / (float)epsl;
+    yIncre = (float)dy / (float)epsl;
+    glColor3f (1.0f, 1.0f, 0.0f);
+    glPointSize(3);
+    for(k = 0; k <= epsl; k++)
+    {
+        glBegin (GL_POINTS);
+        glVertex2i (x, (int)(y+0.5));
+        glEnd ();
+        x += xIncre;
+        y += yIncre;
+    }
 }
 
 void Bresenham(int x0, int y0, int x1, int y1) {
@@ -306,11 +372,10 @@ void Bresenham(int x0, int y0, int x1, int y1) {
            else
                glVertex2i(y, x);
            glEnd();
+           x++;
            if (d < 0) {
-               x++;
                d += DownIncre;
            } else {
-               x++;
                y--;
                d += UpIncre;
            }
@@ -323,8 +388,8 @@ void eighth_circle(int x0, int y0, int r) {
    int x = 0;
    int y = r;
    int d = 1 - r;
-   glColor3f(1.0f, 0.0f, 1.0f);
-   glPointSize(3);
+//   glColor3f(1.0f, 0.0f, 1.0f);
+//   glPointSize(3);
    while (x < y) {
        glBegin(GL_POINTS);
        glVertex2i(x + x0, y + y0);
@@ -562,9 +627,121 @@ void ClipPolygon(void)
     glFlush();
 }
 
+//二维几何变换
+void twoDimensial(void)
+{
+    
+//    xp = 320, yp = 240;
+    glLoadIdentity();
+    glPushMatrix(); // 保存变换矩阵
+    glColor3f(1.0, 0.0, 0.0);
+    glTranslatef(320, 80, 0);
+    drawDiamond();
+
+    glRotatef(120.0, 0.0, 0.0, 1.0);
+    glColor3f(0.0, 1.0, 0.0);  // 绿色
+    drawDiamond();
+
+    glRotatef(120.0, 0.0, 0.0, 1.0);
+    glColor3f(0.0, 0.0, 1.0);
+    drawDiamond();
+    glPopMatrix(); // 恢复变换矩阵
+    float temp = 255.0;
+    glPointSize(5);
+    glColor3f(0,107/temp,176/temp);
+    eighth_circle(100+xp-320, 220+yp-240, 50);
+    glColor3f(29/temp, 24/temp, 21/temp);
+    eighth_circle(180+xp-320, 220+yp-240, 50);
+    glColor3f(220/temp, 47/temp, 31/temp);
+    eighth_circle(260+xp-320, 220+yp-240, 50);
+    glColor3f(239/temp, 169/temp, 13/temp);
+    eighth_circle(140+xp-320, 270+yp-240, 50);
+    glColor3f(5/temp, 147/temp, 65/temp);
+    eighth_circle(220+xp-320, 270+yp-240, 50);
+    glFlush();
+}
+
+const GLfloat PI = 3.1415926f;  //定义圆周率
+//位置以及五角星一个外顶点坐标
+void DrawStar(GLfloat px, GLfloat py, GLfloat vx, GLfloat vy, int flag)
+{
+    glBegin(GL_TRIANGLE_FAN);  //绘制一系列三角形
+    GLfloat vtx[12], vty[12];
+    // 1个中心点，10个顶点，顶点的第一个和最后一个相同，其中奇数下标是外顶点，偶数下标是内顶点
+    vtx[0] = px;  //已知的中心点
+    vty[0] = py;
+    vtx[1] = vx;  //已知的第一个外顶点
+    vty[1] = vy;
+    //中心点到外顶点的长度
+    GLfloat length1 = sqrt((px - vx) * (px - vx) + (py - vy) * (py - vy));
+    //计算剩下的所有顶点
+    GLfloat length2 = length1 * sin(0.1 * PI) / sin(126.0 / 180 * PI);
+    double init = atan((vty[1] - vty[0]) /
+                       (vtx[1] - vtx[0]));  //顶点与中心点连线与x轴的角度
+    if (flag) init = init - PI;
+    for (int i = 2; i < 12; i++) {
+        init = init - 0.2 * PI;
+        if (i % 2 == 0) {  //内顶点
+            vtx[i] = length2 * cos(init) + vtx[0];
+            vty[i] = length2 * sin(init) + vty[0];
+        } else {  //外顶点
+            vtx[i] = length1 * cos(init) + vtx[0];
+            vty[i] = length1 * sin(init) + vty[0];
+        }
+    }
+    for (int i = 0; i < 12; i++)  //设置顶点
+        glVertex3f(vtx[i], vty[i], 0.5);
+    glEnd();
+}
+
+void display() {
+    glClear(GL_COLOR_BUFFER_BIT);  //完成清除窗口的任务
+    //绘制红旗
+    glColor3f(1, 0, 0);  //确定绘制物体时使用的颜色:红色
+    glBegin(GL_QUADS);
+    glVertex3f(-0.75, 0.5, 0.5);  //位于z=0.5平面的矩形 0.5是相对值
+    glVertex3f(0.75, 0.5, 0.5);
+    glVertex3f(0.75, -0.5, 0.5);
+    glVertex3f(-0.75, -0.5, 0.5);
+    glEnd();
+    //绘制星星
+    glColor3f(1.0, 1.0, 0.0);  //设置颜色为黄色
+    GLfloat px[5] = {-1.5 / 3, -0.75 / 3, -0.75 / 5, -0.75 / 5, -0.75 / 3};
+    GLfloat py[5] = {0.25, 0.4, 0.3, 0.15, 0.05};
+    GLfloat vx[5] = {-1.5 / 3};
+    GLfloat vy[5] = {0.4};  //五星的中心点和其中指定顶点
+    //计算其余四星的顶点
+    for (int i = 1; i < 5; i++) {
+        vx[i] = px[i] - 0.05 * cos(atan((py[0] - py[i]) / (px[0] - px[i])));
+        vy[i] = py[i] - 0.05 * sin(atan((py[0] - py[i]) / (px[0] - px[i])));
+    }
+    //绘制
+    DrawStar(px[0], py[0], vx[0], vy[0], 0);
+    DrawStar(px[1], py[1], vx[1], vy[1], 1);
+    DrawStar(px[2], py[2], vx[2], vy[2], 1);
+    DrawStar(px[3], py[3], vx[3], vy[3], 1);
+    DrawStar(px[4], py[4], vx[4], vy[4], 1);
+    glutSwapBuffers();  //交换缓冲区
+}
 
 void Reshape(int w, int h)
 {
+    
+    if (flag == 3) {
+        if (h == 0) h = 1;
+        glViewport(0, 0, w, h);
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+        int dis = w < h ? w : h;
+        glViewport(0, 0, dis, dis);
+        glOrtho(-1.5, 1.5, -1.5, 1.5, -1.5, 1.5);
+        if (w <= h)
+            glOrtho(-1.0, 1.0, 1.0, 1.0 * h / w, 1.0, -1.0);
+        else
+            glOrtho(-1.0, 1.0 * w / h, 1.0, 1.0, 1.0, -1.0);
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+    } else {
         glViewport(0, 0, (GLsizei)w, (GLsizei)h);
         glMatrixMode(GL_PROJECTION);
         glLoadIdentity();
@@ -573,10 +750,11 @@ void Reshape(int w, int h)
         glLoadIdentity();
         ww = w;
         wh = h;
+    }
 }
 
 void motion(int x, int y) {
-    if (flag == 8) { // Bspline
+    if (flag == 8 || flag == 9) { // Bspline
         if (mouseLeftDown) {
             int min_point = 0;
             for (int i = 0; i < cnt; i++) {
@@ -723,7 +901,15 @@ void mouse(int button, int state, int x, int y)
             mouseLeftDown = false;
         }
     } else if (flag == 9) {
-        
+        if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
+            if (cnt2 < 5) {
+                vec2[cnt2].x = x;
+                vec2[cnt2].y = y;
+                cnt++;
+            } else {
+                cnt2 = 0;
+            }
+        }
     }
 }
 
@@ -735,7 +921,9 @@ void Display() {
     //绕y轴旋转
     //glShadeModel(GL_SMOOTH);
     /*指定要绘制的图元*/
+    Reshape(640.0, 480);
     if (imode == 1) {
+        
         /*动态直线裁剪*/
         glLineWidth(2.0);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -751,33 +939,54 @@ void Display() {
         glFlush();
         flag = 1;
     } else if (imode == 2) {
-        /*绘制直线*/
         glClear(GL_COLOR_BUFFER_BIT);
-           glPointSize(30);
+        glPointSize(30);
 
-           LineDDA(200, 400, 400, 0); // k < -1
-
-           LineDDA(0, 200, 400, 000); // 0 > k > -1
-
-           LineDDA(0, 200, 400, 400); // 0 < k < 1
-
-           LineDDA(200, 0, 400, 400); // k > 1
-        
-           Bresenham(0, 0, 200, 400);
-           Bresenham(0, 0, 400, 200);
-           Bresenham(0, 400, 200, 0);
-           Bresenham(0, 400, 400, 200);
-           eighth_circle(200, 200, 200);
-           glFlush();
+        DDA(200, 400, 400, 0); // k < -1
+        DDA(0, 200, 400, 000); // 0 > k > -1
+        DDA(0, 200, 400, 400); // 0 < k < 1
+        DDA(200, 0, 400, 400); // k > 1
+    
+        Bresenham(0, 0, 200, 400);
+        Bresenham(0, 0, 400, 200);
+        Bresenham(0, 400, 200, 0);
+        Bresenham(0, 400, 400, 200);
+        glColor3f(1, 0, 1);
+        eighth_circle(200, 200, 200);
+        glFlush();
         flag = 2;
-        //Initial();
     } else if (imode == 3) {
-        /*动态绘圆*/
+        Reshape(800, 600);
+        glClear(GL_COLOR_BUFFER_BIT);  //完成清除窗口的任务
+        //绘制红旗
+        glColor3f(1, 0, 0);  //确定绘制物体时使用的颜色:红色
+        glBegin(GL_QUADS);
+        glVertex3f(-0.75, 0.5, 0.5);  //位于z=0.5平面的矩形 0.5是相对值
+        glVertex3f(0.75, 0.5, 0.5);
+        glVertex3f(0.75, -0.5, 0.5);
+        glVertex3f(-0.75, -0.5, 0.5);
+        glEnd();
+        //绘制星星
+        glColor3f(1.0, 1.0, 0.0);  //设置颜色为黄色
+        GLfloat px[5] = {-1.5 / 3, -0.75 / 3, -0.75 / 5, -0.75 / 5, -0.75 / 3};
+        GLfloat py[5] = {0.25, 0.4, 0.3, 0.15, 0.05};
+        GLfloat vx[5] = {-1.5 / 3};
+        GLfloat vy[5] = {0.4};  //五星的中心点和其中指定顶点
+        //计算其余四星的顶点
+        for (int i = 1; i < 5; i++) {
+            vx[i] = px[i] - 0.05 * cos(atan((py[0] - py[i]) / (px[0] - px[i])));
+            vy[i] = py[i] - 0.05 * sin(atan((py[0] - py[i]) / (px[0] - px[i])));
+        }
+        //绘制
+        DrawStar(px[0], py[0], vx[0], vy[0], 0);
+        DrawStar(px[1], py[1], vx[1], vy[1], 1);
+        DrawStar(px[2], py[2], vx[2], vy[2], 1);
+        DrawStar(px[3], py[3], vx[3], vy[3], 1);
+        DrawStar(px[4], py[4], vx[4], vy[4], 1);
+        glutSwapBuffers();  //交换缓冲区
         flag = 3;
     } else if (imode == 4) {
         /*动态绘椭圆*/
-
-
         flag = 4;
     } else if (imode == 5) {
         /*动态多边形裁剪*/
@@ -791,13 +1000,15 @@ void Display() {
         glutSwapBuffers();
         flag = 6;
     } else if (imode == 7) {
+        gluOrtho2D(0.0, (GLsizei)1000, (GLsizei)600, 0.0);
+        glutPostRedisplay();
         /*二维变换绘制*/
+        twoDimensial();
         
         flag = 7;
     } else if (imode == 8) {
         /*二次均匀B样条绘制*/
         glClear(GL_COLOR_BUFFER_BIT);
-
         glLineWidth(1.5f);
         glColor3f(1.0, 0.0, 0.0);
         glBegin(GL_LINE_STRIP);
@@ -818,20 +1029,49 @@ void Display() {
         glutSwapBuffers();
         flag = 8;
     } else if (imode == 9) {
-        /*二次均匀B样条绘制*/
-        flag = 9;
-    } else if (imode == 10) {
-        /*动态三角形绘制*/
+        init_Bspline2();
+        glClear(GL_COLOR_BUFFER_BIT);
+        glLineWidth(1.5f);
+        glColor3f(1.0, 0.0, 0.0);
+        glBegin(GL_LINE_STRIP);
+        for (int i = 0;i < cnt2; i++) {
+            glVertex2f(vec2[i].x, vec2[i].y);
+        }
+        glEnd();
 
-        flag = 10;
+        glPointSize(10.0f);
+        glColor3f(0.0, 0.0, 1.0);
+        glBegin(GL_POINTS);
+        for (int i = 0; i < cnt2; i++) {
+            glVertex2f(vec2[i].x, vec2[i].y);
+        }
+        glEnd();
+        Bspline2(20);
+        glFlush();
+        glutSwapBuffers();
+        flag = 9;
     }
     glFlush();
 }
+
+// 贝塞尔曲线
 
 void ProcessMenu(int value) {
     //选择绘制模式
     imode = value;
     glutPostRedisplay();
+}
+
+void SpecialKeys(int key, int x, int y) {
+
+        //绕x轴旋转的角度变化
+        if (key == GLUT_KEY_UP) yp -= 4.0f;
+        if (key == GLUT_KEY_DOWN) yp += 4.0f;
+
+        //绕y轴旋转的角度的变化
+        if (key == GLUT_KEY_LEFT) xp -= 4.0f;
+        if (key == GLUT_KEY_RIGHT) xp += 4.0f;
+        glutPostRedisplay();
 }
 
 int main(int argc, char *argv[])
@@ -846,10 +1086,8 @@ int main(int argc, char *argv[])
     glutAddMenuEntry("直线裁剪", 1);
     int nGLutBesierMenu = glutCreateMenu(ProcessMenu);
     glutAddMenuEntry("直线以及八点画圆", 2);
-//    int nGLutCircleMenu = glutCreateMenu(ProcessMenu);
-//    glutAddMenuEntry("动态绘圆", 3);
-//    int nGLutTCMenu = glutCreateMenu(ProcessMenu);
-//    glutAddMenuEntry("动态绘椭圆", 4);
+    int nGLutStar = glutCreateMenu(ProcessMenu);
+    glutAddMenuEntry("五星红旗", 3);
     int nGLutMCMenu = glutCreateMenu(ProcessMenu);
     glutAddMenuEntry("动态多边形裁剪", 5);
     int nGLutrectMenu = glutCreateMenu(ProcessMenu);
@@ -859,23 +1097,19 @@ int main(int argc, char *argv[])
     int nGLutBT2Menu = glutCreateMenu(ProcessMenu);
     glutAddMenuEntry("二次均匀B样条曲线绘制", 8);
     int nGLutBT3Menu = glutCreateMenu(ProcessMenu);
-    glutAddMenuEntry("三次均匀B样条曲线绘制", 9);
-    int nGLuttraiMenu = glutCreateMenu(ProcessMenu);
-    glutAddMenuEntry("动态三角形绘制", 10);
+    glutAddMenuEntry("二次开放均匀B样条曲线绘制", 9);
 
 
     /*创建主菜单*/
     int nMainMenu = glutCreateMenu(ProcessMenu);
     glutAddSubMenu("直线裁剪", nGLutLine_Clip_Menu);
     glutAddSubMenu("直线以及八点画圆", nGLutBesierMenu);
-//    glutAddSubMenu("动态绘圆", nGLutCircleMenu);
-//    glutAddSubMenu("动态绘椭圆", nGLutTCMenu);
+    glutAddSubMenu("五星红旗", nGLutStar);
     glutAddSubMenu("动态多边形裁剪", nGLutMCMenu);
     glutAddSubMenu("二维正方形变换", nGLutrectMenu);
     glutAddSubMenu("二维变换绘制", nGLutchangeMenu);
     glutAddSubMenu("二次均匀B样条曲线绘制", nGLutBT2Menu);
-    glutAddSubMenu("三次均匀B样条曲线绘制", nGLutBT3Menu);
-    glutAddSubMenu("动态三角形绘制", nGLuttraiMenu);
+    glutAddSubMenu("二次开放均匀B样条曲线绘制", nGLutBT3Menu);
     glutAttachMenu(GLUT_RIGHT_BUTTON);
     glMatrixMode(GL_PROJECTION);
     
@@ -888,7 +1122,7 @@ int main(int argc, char *argv[])
     glutMotionFunc(motion);
     glutReshapeFunc(Reshape);
     glutIdleFunc(spinDisplay);
-//    glutSpecialFunc(SpecialKeys);
+    glutSpecialFunc(SpecialKeys);
     glutMainLoop();
     return 0;
 }
