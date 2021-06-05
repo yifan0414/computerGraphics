@@ -188,7 +188,7 @@ bool LBLineClip(MyRect rect, int &x0, int &y0, int &x1, int &y1) {
         if (LBLineClipTest(deltax, rect.xmax - x0, umax, umin)) {
             if (LBLineClipTest(-deltay, y0 - rect.ymin, umax, umin)) {
                 if (LBLineClipTest(deltay, rect.ymax - y0, umax, umin)) {
-                    int temp1 = x0, temp2 = y0; // 这是一个bug，因为 x0 和 x1 的值会改变
+                    int temp1 = x0, temp2 = y0; // 这是一个bug，因为 x0 和 x1 的值会改变，所以要用同步更新
                     x0 = int(x0 + umax * deltax + 0.5);
                     y0 = int(y0 + umax * deltay + 0.5);
                     x1 = int(temp1 + umin * deltax + 0.5);
@@ -302,7 +302,7 @@ void Bspline2(int n) {
     glEnd();
 }
 
-/*直线以及画圆*/
+/*直线生成算法DDA*/
 void DDA(int x0, int y0, int x1, int y1)
 {
     int dx, dy, epsl, k;
@@ -310,6 +310,7 @@ void DDA(int x0, int y0, int x1, int y1)
     dx = x1 - x0;
     dy = y1 - y0;
     x = x0; y = y0;
+    // 这里是关键的一步，通过判断斜率来确定沿着x轴或者y轴作为步长方向
     if (abs(dx) > abs(dy)) epsl = abs(dx);
     else epsl = abs(dy);
     xIncre = (float)dx / (float)epsl;
@@ -325,65 +326,67 @@ void DDA(int x0, int y0, int x1, int y1)
         y += yIncre;
     }
 }
-
+// 直线生成算法
 void Bresenham(int x0, int y0, int x1, int y1) {
-   int dx, dy, d, UpIncre, DownIncre, x, y;
-   int flag = 0;
-   if (abs(y1 - y0) > abs(x1 - x0)) {
-       swap(x0, y0);
-       swap(x1, y1);
-       flag = 1;
-   }
-   if (x0 > x1){
-       swap(x1, x0);
-       swap(y1, y0);
-   }
-   x = x0; y = y0;
-   dx = x1 - x0; dy = y1 - y0;
-   d = dx - 2 * dy;
-   UpIncre = 2 * dx - 2 * dy;
-   DownIncre = -2 * dy;
-   glColor3f (0.0f, 1.0f, 0.0f);
-   glPointSize(3);
-   if (y0 < y1) {
-       while (x <= x1) {
-           glBegin(GL_POINTS);
-           if (flag == 0) // 0 < k < 1
+    int dx, dy, d, UpIncre, DownIncre, x, y;
+    int flag = 0;
+    // 如果斜率大于 1，就交换x和y的值，并做标记
+    if (abs(y1 - y0) > abs(x1 - x0)) {
+        swap(x0, y0);
+        swap(x1, y1);
+        flag = 1;
+    }
+    // 使得x0 < x1，确定增大方向
+    if (x0 > x1){
+        swap(x1, x0);
+        swap(y1, y0);
+    }
+    x = x0; y = y0;
+    dx = x1 - x0; dy = y1 - y0;
+    glColor3f (0.0f, 1.0f, 0.0f);
+    glPointSize(3);
+    if (y0 < y1) {
+        d = dx - 2 * dy;
+        UpIncre = 2 * dx - 2 * dy;
+        DownIncre = -2 * dy;
+        while (x <= x1) {
+            glBegin(GL_POINTS);
+            if (flag == 0) // 0 < k < 1
                glVertex2i(x, y);
-           else
+            else           // k > 1
                glVertex2i(y, x);
-           glEnd();
-           x++;
-           if (d < 0) {
-               y++;
+            glEnd();
+            x++;           // x方向+1
+            if (d < 0) {
+               y++;        // 如果d<0，意味着更靠近上方
                d += UpIncre;
-           } else {
+            } else {
                d += DownIncre;
-           }
-       }
-   } else {
-       d = -dx - 2 * dy;
-       UpIncre = -2 * dx - 2 * dy;
-       DownIncre = -2 * dy;
-       while (x <= x1) {
-           glBegin(GL_POINTS);
-           if (flag == 0) // 0 < k < 1
+            }
+        }
+    } else {
+        d = -dx - 2 * dy;
+        UpIncre = -2 * dx - 2 * dy;
+        DownIncre = -2 * dy;
+        while (x <= x1) {
+            glBegin(GL_POINTS);
+            if (flag == 0) // 0 < k < 1
                glVertex2i(x, y);
-           else
+            else           // k > 1
                glVertex2i(y, x);
-           glEnd();
-           x++;
-           if (d < 0) {
+            glEnd();
+            x++;
+            if (d < 0) {    // 如果d<0，意味着中点在直线（斜率为负数）下方，不增加
                d += DownIncre;
-           } else {
-               y--;
+            } else {
+               y--;         // 如果d>0，意味着中点在直线（斜率为负数）上方，减少1
                d += UpIncre;
-           }
-       }
-   }
+            }
+        }
+    }
 }
 
-// circle
+// 圆生成算法
 void eighth_circle(int x0, int y0, int r) {
    int x = 0;
    int y = r;
@@ -408,7 +411,6 @@ void eighth_circle(int x0, int y0, int r) {
            y--;
        }
    }
-
 }
 
 /*多边形裁剪*/
@@ -694,35 +696,6 @@ void DrawStar(GLfloat px, GLfloat py, GLfloat vx, GLfloat vy, int flag)
     glEnd();
 }
 
-void display() {
-    glClear(GL_COLOR_BUFFER_BIT);  //完成清除窗口的任务
-    //绘制红旗
-    glColor3f(1, 0, 0);  //确定绘制物体时使用的颜色:红色
-    glBegin(GL_QUADS);
-    glVertex3f(-0.75, 0.5, 0.5);  //位于z=0.5平面的矩形 0.5是相对值
-    glVertex3f(0.75, 0.5, 0.5);
-    glVertex3f(0.75, -0.5, 0.5);
-    glVertex3f(-0.75, -0.5, 0.5);
-    glEnd();
-    //绘制星星
-    glColor3f(1.0, 1.0, 0.0);  //设置颜色为黄色
-    GLfloat px[5] = {-1.5 / 3, -0.75 / 3, -0.75 / 5, -0.75 / 5, -0.75 / 3};
-    GLfloat py[5] = {0.25, 0.4, 0.3, 0.15, 0.05};
-    GLfloat vx[5] = {-1.5 / 3};
-    GLfloat vy[5] = {0.4};  //五星的中心点和其中指定顶点
-    //计算其余四星的顶点
-    for (int i = 1; i < 5; i++) {
-        vx[i] = px[i] - 0.05 * cos(atan((py[0] - py[i]) / (px[0] - px[i])));
-        vy[i] = py[i] - 0.05 * sin(atan((py[0] - py[i]) / (px[0] - px[i])));
-    }
-    //绘制
-    DrawStar(px[0], py[0], vx[0], vy[0], 0);
-    DrawStar(px[1], py[1], vx[1], vy[1], 1);
-    DrawStar(px[2], py[2], vx[2], vy[2], 1);
-    DrawStar(px[3], py[3], vx[3], vy[3], 1);
-    DrawStar(px[4], py[4], vx[4], vy[4], 1);
-    glutSwapBuffers();  //交换缓冲区
-}
 
 void Reshape(int w, int h)
 {
