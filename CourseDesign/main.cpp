@@ -133,7 +133,7 @@ bool cohenSutherlandLineClip(MyRect  rect, int &x0, int & y0, int &x1, int &y1)
                 codeout = code0;
             else
                 codeout = code1;
-
+            //从最低位开始枚举（左右下上），找到第一个1，求出交点
             if (codeout&LEFT_EDGE) {
                 y = y0 + (y1 - y0)*(rect.xmin - x0) / (x1 - x0);
                 x = (float)rect.xmin;
@@ -177,7 +177,7 @@ bool LBLineClipTest(GLfloat p, GLfloat q, GLfloat &umax, GLfloat &umin) {
         r = q / p;
         if (r < umax) return false;
         if (r < umin) umin = r;
-    } else if (q < 0.0) return false;
+    } else if (q < 0.0) return false; //证明此时的 p = 0，直线为垂直线
     return true;
 }
 
@@ -188,7 +188,8 @@ bool LBLineClip(MyRect rect, int &x0, int &y0, int &x1, int &y1) {
         if (LBLineClipTest(deltax, rect.xmax - x0, umax, umin)) {
             if (LBLineClipTest(-deltay, y0 - rect.ymin, umax, umin)) {
                 if (LBLineClipTest(deltay, rect.ymax - y0, umax, umin)) {
-                    int temp1 = x0, temp2 = y0; // 这是一个bug，因为 x0 和 x1 的值会改变，所以要用同步更新
+                    //上面四次判断即保证了直线穿过了裁剪窗口，也求出了umax和umin
+                    int temp1 = x0, temp2 = y0; // 这里需要用同步更新
                     x0 = int(x0 + umax * deltax + 0.5);
                     y0 = int(y0 + umax * deltay + 0.5);
                     x1 = int(temp1 + umin * deltax + 0.5);
@@ -345,6 +346,7 @@ void Bresenham(int x0, int y0, int x1, int y1) {
     dx = x1 - x0; dy = y1 - y0;
     glColor3f (0.0f, 1.0f, 0.0f);
     glPointSize(3);
+    // 斜率>0
     if (y0 < y1) {
         d = dx - 2 * dy;
         UpIncre = 2 * dx - 2 * dy;
@@ -503,21 +505,24 @@ int edgeCliper(Boundary b, polygon2D wMin, polygon2D wMax, polygon2D* pIn, int c
     s = pIn[0];
     for (i = 1; i <= cnt; i++)
     {
+        // 如果当前点在裁剪窗口外，下一个点在裁剪窗口内
         if (!inside(s, b, wMin, wMax) && inside(pIn[i], b, wMin, wMax))
         {
-            pOut[Ocnt] = intersect(s, pIn[i], b, wMin, wMax);
+            pOut[Ocnt] = intersect(s, pIn[i], b, wMin, wMax); // 将交点加入输出表
             Ocnt++;
-            pOut[Ocnt] = pIn[i];
+            pOut[Ocnt] = pIn[i];    // 将下一个顶点加入输出表
             Ocnt++;
         }
+        // 如果当前点和下一个点都在裁剪窗口内
         else if (inside(s, b, wMin, wMax) && inside(pIn[i], b, wMin, wMax))
         {
             pOut[Ocnt] = pIn[i];
             Ocnt++;
         }
+        //如果当前点在裁剪窗口内，下一个点不在裁剪窗口内
         else if (inside(s, b, wMin, wMax) && (!inside(pIn[i], b, wMin, wMax)))
         {
-            pOut[Ocnt] = intersect(s, pIn[i], b, wMin, wMax);
+            pOut[Ocnt] = intersect(s, pIn[i], b, wMin, wMax); //将交点加入输出表
             Ocnt++;
         }
         s = pIn[i];
@@ -696,6 +701,103 @@ void DrawStar(GLfloat px, GLfloat py, GLfloat vx, GLfloat vy, int flag)
     glEnd();
 }
 
+// 贝塞尔曲线
+//x,y 方向旋转参数
+static int N = -1;   //贝赛尔曲线的幂次
+static GLfloat Bfunc[15] = { 0.0 };    //Bernstein多项式的值的数组
+GLfloat point[15][2] = { 0.0 };     //存储控制点的坐标
+void Bezier()
+{
+    int i, j, t;
+    GLfloat u;
+    //使用的绘制点坐标
+    GLfloat DPoint1[2];
+    GLfloat DPoint2[2];
+    //先将第一个控制点赋给第二个点，为后面的循环做准备
+    for (i = 0; i < 2; i++)
+        DPoint2[i] = point[0][i];
+    glClear(GL_COLOR_BUFFER_BIT);
+    //设置控制点的颜色
+    glColor3f(1.0f, 0.0f, 0.0f);
+    //设置控制点的大小
+    glPointSize(5);
+    //绘制控制点
+    glBegin(GL_POINTS);
+    for (i = 0; i <= N; i++)
+    {
+        glVertex2fv(point[i]);
+    }
+    glEnd();
+
+    //设置连接控制点线的颜色
+    glColor3f(0.0f, 0.0f, 0.0f);
+    //设置连线的宽度
+    glLineWidth(3);
+    //绘制连线
+    glBegin(GL_LINE_STRIP);
+    for (i = 0; i <= N; i++)
+        glVertex2fv(point[i]);
+    glEnd();
+
+    //设置Bezier曲线的颜色
+    glColor3f(1.0f, 0.0f, 0.0f);
+    //设置线宽
+    glLineWidth(2);
+    for (i = 0; i <= 1000; i++)
+    {
+        //获得u值
+        u = i / 1000.0;
+        //初始化Bfunc数组
+        for (t = 0; t <= N; t++)
+            Bfunc[t] = 1.0;
+        //第一个点的坐标等于第二个点的坐标，方便下面的绘制
+        DPoint1[0] = DPoint2[0];
+        DPoint1[1] = DPoint2[1];
+        //将第二个坐标的x，y设置为
+        DPoint2[0] = 0.0;
+        DPoint2[1] = 0.0;
+        //循环、递推计算Bezier基函数的值
+        for (j = 0; j <= N; j++)
+        {
+            if (j == 0)
+            {
+                //V0处的Bezier基函数
+                Bfunc[j] = 1;
+                for (t = N; t > j; t--)
+                    Bfunc[j] = Bfunc[j] * (1 - u);
+            }
+            else
+            {
+                if (i != 1000)
+                    Bfunc[j] = (1.0 * (N - j + 1) / j) * (u / (1 - u)) * Bfunc[j - 1];
+                else
+                {
+                    //Bfunc[N]处的Bezier基函数
+                    if (j == N)
+                        for (t = 0; t < N; t++)
+                            Bfunc[j] = Bfunc[j] * u;
+                    else
+                        Bfunc[j] = 0.0;
+                }
+            }
+            //获得第二个点的坐标值
+            DPoint2[0] = DPoint2[0] + Bfunc[j] * point[j][0];
+            DPoint2[1] = DPoint2[1] + Bfunc[j] * point[j][1];
+        }
+        //连接两点
+        if (N >= 1)
+        {
+            //printf("连接两点");
+            glBegin(GL_LINES);
+            glVertex2fv(DPoint1);
+            glVertex2fv(DPoint2);
+            glEnd();
+        }
+    }
+    //glFlush();
+
+}
+
 
 void Reshape(int w, int h)
 {
@@ -746,9 +848,8 @@ void keyboard(unsigned char key, int x, int y)
         switch (key)
         {
             case 'c':
-                bDrawLine = cohenSutherlandLineClip(rect, x2, y2, x3, y3);
-//                bDrawLine = LBLineClip(rect, x0, y0, x1, y1);
-                cout << x2 << " " << y2 << " " << x3 << " " << y3 << endl;
+//                bDrawLine = cohenSutherlandLineClip(rect, x2, y2, x3, y3);
+                bDrawLine = LBLineClip(rect, x2, y2, x3, y3);
                 glutPostRedisplay();
                 break;
             case 'a':
@@ -768,7 +869,28 @@ void keyboard(unsigned char key, int x, int y)
     } else if (flag == 3) {
         
     } else if (flag == 4) {
-        
+        switch (key)
+        {
+            //退出运行系统
+            case'q':case'Q':
+                exit(0);
+                break;
+                //重画曲线
+            case'c':case'C':
+                N = -1;
+                glutPostRedisplay();
+                break;
+            case 'r':
+                N--;
+                glutPostRedisplay();
+                break;
+            //刷新
+            case'e':case'E':
+                glutPostRedisplay();
+                break;
+            default:
+                break;
+        }
     } else if (flag == 5) {
         switch (key)
             {
@@ -846,7 +968,25 @@ void mouse(int button, int state, int x, int y)
         
     } else if (flag == 4) {
         
+        //printf("贝塞尔鼠标点击事件", flag);
+        //如果不是点击鼠标左键的状态，则不获得坐标值
+        if (button != GLUT_LEFT_BUTTON || state != GLUT_DOWN)
+            return;
+        if (N < 100)
+        {
+            N++;
+            //获得鼠标点击的坐标
+        /*    point[N][0] = (2.0*x) / (float)(W - 1) - 1.0;
+            point[N][1] = (2.0*(H - y)) / (float)(H)-1.0;*/
+            point[N][0] = x;
+            point[N][1] = y;
+            //重绘
+            //printf("进来了");
+            glutPostRedisplay();
+            //printf("贝塞尔鼠标点击事件结束");
+        }
     } else if (flag == 5) {
+        
         if (button != GLUT_LEFT_BUTTON || state != GLUT_DOWN)
                 return;
         if (Clip_N < 15)
@@ -890,14 +1030,10 @@ void Display() {
     glClear(GL_COLOR_BUFFER_BIT);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    //绕x轴旋转
-    //绕y轴旋转
-    //glShadeModel(GL_SMOOTH);
-    /*指定要绘制的图元*/
-    Reshape(640.0, 480);
+    Reshape(640.0, 480.0);
     if (imode == 1) {
-        
         /*动态直线裁剪*/
+        glutSetWindowTitle("直线裁剪");
         glLineWidth(2.0);
         glClear(GL_COLOR_BUFFER_BIT);
         glColor3f(0.0, 0.0, 0.0);
@@ -912,9 +1048,9 @@ void Display() {
         glFlush();
         flag = 1;
     } else if (imode == 2) {
+        glutSetWindowTitle("直线生成算法");
         glClear(GL_COLOR_BUFFER_BIT);
         glPointSize(30);
-
         DDA(200, 400, 400, 0); // k < -1
         DDA(0, 200, 400, 000); // 0 > k > -1
         DDA(0, 200, 400, 400); // 0 < k < 1
@@ -929,6 +1065,7 @@ void Display() {
         glFlush();
         flag = 2;
     } else if (imode == 3) {
+        glutSetWindowTitle("五星红旗");
         Reshape(800, 600);
         glClear(GL_COLOR_BUFFER_BIT);  //完成清除窗口的任务
         //绘制红旗
@@ -959,15 +1096,19 @@ void Display() {
         glutSwapBuffers();  //交换缓冲区
         flag = 3;
     } else if (imode == 4) {
-        /*动态绘椭圆*/
+        glutSetWindowTitle("贝塞尔曲线");
+//        puts("helloimode");
+        Bezier();
         flag = 4;
     } else if (imode == 5) {
         /*动态多边形裁剪*/
+        glutSetWindowTitle("动态多边形裁剪");
         ClipPolygon();
         flag = 5;
     } else if (imode == 6) {
         /*动态绘制矩形*/
         glClear(GL_COLOR_BUFFER_BIT);
+        glutSetWindowTitle("正方形旋转");
         glColor3f(0.0, 0.0, 0.0);
         square();
         glutSwapBuffers();
@@ -976,11 +1117,12 @@ void Display() {
         gluOrtho2D(0.0, (GLsizei)1000, (GLsizei)600, 0.0);
         glutPostRedisplay();
         /*二维变换绘制*/
+        glutSetWindowTitle("奥运五环");
         twoDimensial();
-        
         flag = 7;
     } else if (imode == 8) {
         /*二次均匀B样条绘制*/
+        glutSetWindowTitle("二次均匀B样条绘制");
         glClear(GL_COLOR_BUFFER_BIT);
         glLineWidth(1.5f);
         glColor3f(1.0, 0.0, 0.0);
@@ -1027,7 +1169,7 @@ void Display() {
     glFlush();
 }
 
-// 贝塞尔曲线
+
 
 void ProcessMenu(int value) {
     //选择绘制模式
@@ -1057,10 +1199,12 @@ int main(int argc, char *argv[])
     
     int nGLutLine_Clip_Menu = glutCreateMenu(ProcessMenu);
     glutAddMenuEntry("直线裁剪", 1);
-    int nGLutBesierMenu = glutCreateMenu(ProcessMenu);
+    int nGlutLineCircle = glutCreateMenu(ProcessMenu);
     glutAddMenuEntry("直线以及八点画圆", 2);
     int nGLutStar = glutCreateMenu(ProcessMenu);
     glutAddMenuEntry("五星红旗", 3);
+    int nGLutBesier = glutCreateMenu(ProcessMenu);
+    glutAddMenuEntry("贝塞尔曲线", 4);
     int nGLutMCMenu = glutCreateMenu(ProcessMenu);
     glutAddMenuEntry("动态多边形裁剪", 5);
     int nGLutrectMenu = glutCreateMenu(ProcessMenu);
@@ -1069,20 +1213,21 @@ int main(int argc, char *argv[])
     glutAddMenuEntry("二维变换绘制", 7);
     int nGLutBT2Menu = glutCreateMenu(ProcessMenu);
     glutAddMenuEntry("二次均匀B样条曲线绘制", 8);
-    int nGLutBT3Menu = glutCreateMenu(ProcessMenu);
-    glutAddMenuEntry("二次开放均匀B样条曲线绘制", 9);
+//    int nGLutBT3Menu = glutCreateMenu(ProcessMenu);
+//    glutAddMenuEntry("二次开放均匀B样条曲线绘制", 9);
 
 
     /*创建主菜单*/
-    int nMainMenu = glutCreateMenu(ProcessMenu);
+    glutCreateMenu(ProcessMenu);
     glutAddSubMenu("直线裁剪", nGLutLine_Clip_Menu);
-    glutAddSubMenu("直线以及八点画圆", nGLutBesierMenu);
+    glutAddSubMenu("直线以及八点画圆", nGlutLineCircle);
     glutAddSubMenu("五星红旗", nGLutStar);
+    glutAddSubMenu("贝塞尔曲线", nGLutBesier);
     glutAddSubMenu("动态多边形裁剪", nGLutMCMenu);
     glutAddSubMenu("二维正方形变换", nGLutrectMenu);
     glutAddSubMenu("二维变换绘制", nGLutchangeMenu);
     glutAddSubMenu("二次均匀B样条曲线绘制", nGLutBT2Menu);
-    glutAddSubMenu("二次开放均匀B样条曲线绘制", nGLutBT3Menu);
+//    glutAddSubMenu("二次开放均匀B样条曲线绘制", nGLutBT3Menu);
     glutAttachMenu(GLUT_RIGHT_BUTTON);
     glMatrixMode(GL_PROJECTION);
     
